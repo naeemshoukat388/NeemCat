@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NeemCat – One clean prompt from a messy idea</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f6b73">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#eef3f4;--card:#fff;--ink:#12303a;--mute:#5d7580;--line:#d3e0e3;--brand:#0f6b73;--brand2:#0b525a;--on:#fff;--chip:#e3eef0;--warn:#f2a93b}
+@media(prefers-color-scheme:dark){:root{--bg:#0e1b20;--card:#16282f;--ink:#e6f0f2;--mute:#8fa8b1;--line:#27414a;--brand:#3fb8c2;--brand2:#5cc9d2;--on:#08262b;--chip:#1e3640}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{font-family:'Space Grotesk',system-ui,-apple-system,Segoe UI,sans-serif;background:var(--bg);color:var(--ink);line-height:1.5}
+.wrap{max-width:760px;margin:0 auto;padding:18px 16px 60px}
+header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:22px}
+.logo{font-size:1.5rem;font-weight:700;letter-spacing:-.02em}
+.logo span{color:var(--brand)}
+.hd{display:flex;gap:8px;align-items:center}
+.pill{font-size:.78rem;padding:4px 10px;border-radius:99px;background:var(--chip);color:var(--mute)}
+.pill.on{background:var(--brand);color:var(--on)}
+h1{font-size:1.7rem;line-height:1.2;margin:0 0 6px;letter-spacing:-.02em}
+.sub{color:var(--mute);margin:0 0 18px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px}
+textarea,input[type=text],input[type=url],input[type=password]{width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px}
+textarea{min-height:130px;resize:vertical;font-size:1rem}
+textarea:focus,input:focus,button:focus-visible{outline:2px solid var(--brand);outline-offset:1px}
+label.q{display:block;font-weight:500;margin:0 0 8px}
+.qb{margin-bottom:18px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px}
+.chip{font:inherit;font-size:.9rem;padding:8px 13px;border-radius:99px;border:1px solid var(--line);background:var(--chip);color:var(--ink);cursor:pointer}
+.chip[aria-pressed=true]{background:var(--brand);color:var(--on);border-color:var(--brand)}
+.btn{font:inherit;font-weight:500;padding:12px 18px;border-radius:10px;border:1px solid var(--brand);background:var(--brand);color:var(--on);cursor:pointer}
+.btn:hover{background:var(--brand2)}
+.btn.ghost{background:transparent;color:var(--brand)}
+.btn.ghost:hover{background:var(--chip)}
+.btn:disabled{opacity:.55;cursor:wait}
+.row{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.gap{display:grid;gap:8px}
+pre{white-space:pre-wrap;word-wrap:break-word;font:inherit;font-size:.93rem;margin:0;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:14px;max-height:520px;overflow:auto}
+h2{font-size:1.1rem;margin:0 0 10px}
+.hint{font-size:.85rem;color:var(--mute);margin:6px 0 0}
+a{color:var(--brand)}
+[hidden]{display:none!important}
+.mini{font-size:.88rem;padding:8px 12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="logo">Neem<span>Cat</span></div>
+  <div class="hd"><button class="btn ghost mini" id="install" hidden>Install app</button><span class="pill" id="mode">AI</span></div>
+</header>
+
+<section id="s1">
+  <h1>Say your idea. Get one clean prompt.</h1>
+  <p class="sub">Type it messy, in any language. NeemCat gives you one professional English prompt to paste into ChatGPT, Claude or Gemini.</p>
+  <div class="card">
+    <textarea id="idea" placeholder="Example: I want a portfolio website, give me a prompt for it"></textarea>
+    <div class="row"><button class="btn" id="next">Continue</button></div>
+  </div>
+</section>
+
+<section id="s2" hidden>
+  <h1>A few quick questions</h1>
+  <p class="sub">All optional. Tap what fits, or skip.</p>
+  <div class="card"><div id="qs"></div>
+    <div class="row"><button class="btn" id="gen">Generate prompt</button><button class="btn ghost" id="skip">Skip all – generate now</button></div>
+  </div>
+</section>
+
+<section id="s3" hidden>
+  <h1 id="s3t">Writing your prompt…</h1>
+  <div class="card">
+    <pre id="out" aria-live="polite"></pre>
+    <div class="row"><button class="btn" id="copy">Copy</button><button class="btn ghost" id="dl">Download</button></div>
+    <p class="hint" style="margin-top:14px">Adjust it:</p>
+    <div class="chips" id="fixes"></div>
+  </div>
+  <div class="row"><button class="btn ghost" id="again">Start a new prompt</button></div>
+</section>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+
+// Installable web app: register the service worker (phone and PC).
+// Fails silently where service workers are not supported.
+if ('serviceWorker' in navigator) { navigator.serviceWorker.register('sw.js').catch(function(){}); }
+
+/* "Install app" button: shows when the browser says the app can be
+   installed (phone and PC). On iPhone, browsers cannot offer this,
+   so the button shows the manual steps instead. */
+(function(){
+  var btn=document.getElementById('install');
+  var installed=(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone;
+  if(installed) return;
+  var deferred=null;
+  var isiOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
+  window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();deferred=e;btn.hidden=false;});
+  if(isiOS){btn.hidden=false;}
+  btn.addEventListener('click',function(){
+    if(deferred){deferred.prompt();deferred.userChoice.then(function(){deferred=null;btn.hidden=true;});}
+    else if(isiOS){alert('On iPhone: tap Share, then "Add to Home Screen".');}
+  });
+})();
+
+/* There is NO API key in this page. The key lives in the backend only.
+   Visitors just use the site — nothing to paste, nothing to set up.
+   The backend URL below is set here in the code, once, when the
+   backend exists. */
+const BACKEND_URL='https://neemcat.n-chat.workers.dev';
+let idea='',cat='general',answers={},current='',busy=false;
+
+const NOT_CONNECTED='AI is not connected yet. Please try again in a moment.';
+const clean=t=>t.replace(/^```\w*\n?|```$/g,'').trim();
+const isBad=t=>/git|github|publish|deploy/i.test(t);
+
+/* ---------- Strong AI system prompt ---------- */
+const SYS=`You are NeemCat's prompt engine. The user gives a messy idea in any language (English, Urdu, Roman Urdu, Hindi, Arabic or any other). Understand what they really want, then write ONE professional English prompt they can paste into any AI.
+Rules:
+- Output ONLY the prompt text. No intro, no greeting, no notes, no markdown fences, no summary, no guide, no step-by-step plan of your own.
+- Do NOT build the user's idea yourself. Write the prompt that makes another AI do it.
+- Use exactly these five sections, each on its own line with the label followed by a colon: Role, Task, Context, Requirements (a bullet list with "- "), Output Format. Be full and detailed, never short or vague. A good prompt is long enough to be used without asking follow-up questions.
+- Work for every category and use current best practice for that category: coding, marketing, writing, business, study, research, finance, productivity, creative, image, video and more. Be the best in each category, not generic.
+- For image or photo-edit ideas, the prompt must cover subject, setting, lighting, camera angle, mood, colours, style, aspect ratio and quality keywords. Keep the person's face and identity exactly the same unless the user says otherwise. Never write a step-by-step guide; the output is a prompt for an image model, not instructions for a person.
+- For video ideas, cover scenes, shots, pacing, sound, on-screen text and duration.
+- For coding ideas, ask for working, well-commented code and explain how to run it.
+- Use the user's details from the Details section wherever they are relevant. If name or title is missing, use [YOUR NAME] and [YOUR TITLE]. Never invent names, emails, links, phone numbers or personal facts; use clear [PLACEHOLDERS] instead.
+- Never mention Git, GitHub, publishing, deployment or hosting steps anywhere in the prompt.`;
+
+/* ---------- AI: backend only. The backend holds the keys and calls
+   Gemini first, Groq as backup. This page never talks to the AI directly. ---------- */
+async function post(url,opt){const c=new AbortController(),t=setTimeout(()=>c.abort(),60000);try{const r=await fetch(url,{...opt,signal:c.signal});if(!r.ok)throw 0;return await r.json()}finally{clearTimeout(t)}}
+
+function backendEndpoint(){
+ const u=BACKEND_URL.trim().replace(/\/+$/,'');
+ if(!u)return'';
+ return u.endsWith('/generate')?u:u+'/generate';
+}
+async function askBackend(instruction){
+ const url=backendEndpoint();if(!url)return null;
+ try{
+  const d=await post(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({idea,category:cat,answers,instruction:instruction||undefined})});
+  const t=(d&&typeof d.prompt==='string')?d.prompt.trim():'';
+  return t||null;
+ }catch(e){return null}
+}
+/* askAI(instruction): no instruction = generate from the idea + answers.
+   With an instruction = rewrite (fix-it) or a test. Returns the cleaned
+   prompt string, or null when the backend is not reachable. */
+async function askAI(instruction){
+ const r=await askBackend(instruction);
+ return r?clean(r):null;
+}
+
+/* ---------- Idea type ---------- */
+function detect(t){t=t.toLowerCase();
+ if(/portfolio/.test(t))return'portfolio';
+ if(/photo|picture|image|tasveer|tasvir|selfie|cinematic|wallpaper|poster|logo|thumbnail|edit/.test(t))return'image';
+ if(/video|reel|shorts|animation/.test(t))return'video';
+ if(/code|coding|app\b|website|web site|script|python|javascript|bug|software|api\b|program/.test(t))return'coding';
+ if(/market|\bads?\b|instagram|caption|seo|brand|social media|youtube|tiktok/.test(t))return'marketing';
+ if(/essay|article|blog|story|email|letter|poem|write|likh|speech|resume|\bcv\b/.test(t))return'writing';
+ if(/study|exam|notes|learn|lesson|quiz|homework|padh|course|vu\b/.test(t))return'study';
+ if(/business|startup|plan|sales|customer|pitch|invoice|shop|store/.test(t))return'business';
+ if(/finance|budget|invest|saving|tax|money|stock/.test(t))return'finance';
+ if(/research|paper|thesis|analy[sz]e|compare|report/.test(t))return'research';
+ if(/routine|habit|schedule|organise|organize|productiv|planner|todo/.test(t))return'productivity';
+ if(/name|idea|logo|brand name|story idea|character|poem|song/.test(t))return'creative';
+ return'general'}
+
+/* ---------- Questions: name details first, then smart questions per category ---------- */
+const NAMEQ={id:'name',type:'name',label:'About you'};
+const C=(id,label,options)=>({id,label,type:'chips',options});
+const TX=(id,label,ph)=>({id,label,type:'text',ph});
+function questions(c){
+ const common=[C('audience','Who is it for?',['Beginners','Professionals','Customers','Students']),C('tone','Tone?',['Friendly','Formal','Creative','Simple']),C('length','Length?',['Short','Medium','Long and detailed']),C('format','Output format?',['Step-by-step','Bullet points','Table','Plain text'])];
+ if(c==='portfolio')return[NAMEQ,TX('projects','Which projects should it show?','e.g. 3 projects: name and one line each'),TX('contact','Contact details to include?','Email, phone, social links'),C('colour','Colour style?',['Dark and minimal','Light and clean','Colourful','Let the AI decide']),C('cta','Main call-to-action?',['Hire me','Contact me','View my work','Download my CV'])];
+ if(c==='image')return[NAMEQ,TX('change','What should change in the photo?','e.g. cinematic look, golden hour light, city background'),C('style','Style?',['Cinematic','Moody film look','Warm golden tones','Teal and orange']),C('mood','Mood?',['Dramatic','Calm','Epic','Romantic']),C('ratio','Aspect ratio?',['1:1','4:5','16:9','9:16']),C('keep','What must stay the same?',['My face exactly','Face and outfit','Everything except the background'])];
+ if(c==='video')return[NAMEQ,C('type','Video type?',['Explainer','Short film','Vlog','Documentary']),C('length','Length?',['15 seconds','30 seconds','1 minute','5 minutes']),C('platform','Platform?',['YouTube','TikTok','Instagram','Shorts']),C('mood','Mood?',['Fun','Serious','Inspiring','Dramatic'])];
+ if(c==='coding')return[NAMEQ,C('language','Language?',['Python','JavaScript','HTML and CSS','Let the AI decide']),C('goal','What do you need?',['Build something new','Fix a bug','Learn a concept','Review my code']),C('level','Your level?',['Beginner','Intermediate','Advanced'])];
+ if(c==='marketing')return[NAMEQ,C('platform','Platform?',['Instagram','YouTube','TikTok','Email','Google Ads']),C('goal','Goal?',['More sales','More followers','Launch a product','Brand awareness']),...common.slice(0,3)];
+ if(c==='writing')return[NAMEQ,C('type','What kind of writing?',['Blog post','Essay','Email','Story','Social post']),...common];
+ if(c==='study')return[NAMEQ,TX('subject','Subject or topic?','e.g. trigonometry, chapter 3'),C('goal','What do you need?',['Understand a topic','Exam notes','Practice questions','Simple explanation']),C('level','Level?',['School','University','Beginner'])];
+ if(c==='business')return[NAMEQ,C('goal','What do you need?',['Business plan','More sales','Pricing help','Pitch','Customer help']),...common];
+ if(c==='finance')return[NAMEQ,C('goal','What do you need?',['Monthly budget','Saving plan','Investing basics','Debt plan']),C('tone','Tone?',['Simple','Detailed','Strict']),C('length','Length?',['Short','Medium','Long and detailed'])];
+ if(c==='research')return[NAMEQ,C('type','What kind of research?',['Compare options','Summarise a paper','Find sources','Explain a topic']),C('depth','How deep?',['Quick overview','Detailed','With sources'])];
+ if(c==='productivity')return[NAMEQ,TX('goal','What do you want to improve?','e.g. my daily study routine'),C('time','How much time per day?',['15 minutes','30 minutes','1 hour','2+ hours']),C('tone','Tone?',['Friendly','Strict','Simple'])];
+ if(c==='creative')return[NAMEQ,C('type','What are you creating?',['Name','Story','Character','Poem','Song']),C('mood','Mood?',['Fun','Dark','Romantic','Epic']),C('tone','Tone?',['Simple','Poetic','Bold'])];
+ return[NAMEQ,...common];}
+function renderQs(){const box=$('#qs');box.innerHTML='';answers={};
+ questions(cat).slice(0,6).forEach(q=>{const d=document.createElement('div');d.className='qb';
+  if(q.type==='name'){d.innerHTML=`<label class="q">Your details</label><div class="gap"><input type="text" data-k="name" placeholder="Your name"><input type="text" data-k="title" placeholder="Your title or role"><input type="text" data-k="about" placeholder="One short line about you"></div>`;
+   d.querySelectorAll('input').forEach(i=>i.oninput=()=>answers[i.dataset.k]=i.value.trim())}
+  else if(q.type==='text'){d.innerHTML=`<label class="q">${q.label}</label><input type="text" placeholder="${q.ph||''}">`;d.querySelector('input').oninput=e=>answers[q.id]=e.target.value.trim()}
+  else{d.innerHTML=`<label class="q">${q.label}</label><div class="chips"></div>`;const ch=d.querySelector('.chips');
+   q.options.forEach(o=>{const b=document.createElement('button');b.type='button';b.className='chip';b.textContent=o;b.setAttribute('aria-pressed','false');
+    b.onclick=()=>{const on=b.getAttribute('aria-pressed')!=='true';ch.querySelectorAll('.chip').forEach(x=>x.setAttribute('aria-pressed','false'));b.setAttribute('aria-pressed',on);answers[q.id]=on?o:''};ch.appendChild(b)})}
+  d.dataset.label=q.label;d.dataset.qid=q.id;box.appendChild(d)})}
+/* ---------- Fix-it buttons (AI only) ---------- */
+const FIX={shorter:['Shorter','Make it noticeably shorter and tighter. Keep all five sections but cut repetition.'],formal:['More formal','Make the tone more formal and professional.'],beginner:['For beginners','Rewrite so a complete beginner can use it: plain words, short sentences, explain any technical term briefly.'],detailed:['More detailed','Make it more detailed, with extra specific requirements, constraints and edge cases.'],examples:['Add examples','Add 2 or 3 short, concrete examples inside the prompt to show the expected result.']};
+const fx=$('#fixes');Object.keys(FIX).forEach(k=>{const b=document.createElement('button');b.className='chip';b.textContent=FIX[k][0];b.onclick=async()=>{if(busy||!current)return;busy=true;b.disabled=true;
+ const r=await askAI('Here is a prompt:\n\n'+current+'\n\nRewrite it with this change: '+FIX[k][1]+'\nKeep the sections Role, Task, Context, Requirements, Output Format. Return only the prompt.');
+ if(r&&r.length>80&&!isBad(r)){current=r}
+ else{b.textContent='AI not connected';setTimeout(()=>{b.textContent=FIX[k][0]},2000)}
+ $('#out').textContent=current;busy=false;b.disabled=false};fx.appendChild(b)});
+
+/* ---------- Flow ---------- */
+const show=id=>['s1','s2','s3'].forEach(s=>$('#'+s).hidden=s!==id);
+$('#next').onclick=()=>{idea=$('#idea').value.trim();if(!idea){$('#idea').focus();return}cat=detect(idea);renderQs();show('s2');scrollTo(0,0)};
+async function generate(){if(busy)return;busy=true;show('s3');$('#s3t').textContent='Writing your prompt…';$('#out').textContent='';scrollTo(0,0);
+ const ai=await askAI();
+ if(ai&&ai.length>80){const p=clean(ai);if(!isBad(p)){current=p;$('#out').textContent=current;$('#s3t').textContent='Your prompt is ready';busy=false;return}}
+ current='';$('#out').textContent=NOT_CONNECTED;$('#s3t').textContent='AI is not connected yet';busy=false}
+$('#gen').onclick=generate;
+$('#skip').onclick=()=>{answers={};generate()};
+$('#again').onclick=()=>{$('#idea').value='';show('s1');scrollTo(0,0)};
+$('#copy').onclick=async()=>{if(!current)return;try{await navigator.clipboard.writeText(current)}catch(e){const r=document.createRange();r.selectNodeContents($('#out'));const s=getSelection();s.removeAllRanges();s.addRange(r);document.execCommand('copy')}$('#copy').textContent='Copied';setTimeout(()=>$('#copy').textContent='Copy',1500)};
+$('#dl').onclick=()=>{if(!current)return;const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([current],{type:'text/plain'}));a.download='neemcat-prompt.txt';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500)};
+</script>
+</body>
+</html>
